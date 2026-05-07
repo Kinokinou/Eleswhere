@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, ImageIcon, MapPinned } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPinned, Route } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { TripRouteExplorer } from "@/components/trip-route-explorer";
+import { TripDetailCalendar } from "@/components/trip-detail-calendar";
+import { TripMemoryPhotoWall } from "@/components/trip-memory-photo-wall";
 import { fetchTrip } from "@/lib/api-client";
 import type { TripDraft } from "@/lib/trips";
 
@@ -35,13 +36,11 @@ export default function TripDetailPage() {
     );
   }
 
-  const cover = trip.photos.find((photo) => photo.id === trip.coverPhotoId);
-
   return (
     <section>
       <PageHeader
         title="Trip Detail"
-        description="查看由照片自动整理出的旅行时间线、地点段落和路线。"
+        description="查看由照片自动整理出的旅行时间线、日历和照片记忆。"
         action={
           <Link
             href="/trips"
@@ -53,23 +52,12 @@ export default function TripDetailPage() {
         }
       />
 
-      <div className="overflow-hidden rounded-lg border border-black/10 bg-white">
-        <div className="h-72 bg-[#eef1ec]">
-          {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover.dataUrl ?? cover.previewUrl}
-              alt={trip.title}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <ImageIcon className="text-black/35" size={36} />
-            </div>
-          )}
-        </div>
+      <div className="rounded-lg border border-black/10 bg-white">
         <div className="p-6">
           <h2 className="text-4xl font-semibold tracking-[0px]">{trip.title}</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-black/55">
+            {trip.subtitle ?? "由照片时间、地点和路线点自动整理出的旅行记录。"}
+          </p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm text-black/55">
             <span className="inline-flex items-center gap-1 rounded-lg bg-black/[0.04] px-3 py-2">
               <CalendarDays size={15} />
@@ -80,6 +68,10 @@ export default function TripDetailPage() {
             </span>
             <span className="rounded-lg bg-black/[0.04] px-3 py-2">
               {trip.photos.length} 张照片
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-lg bg-black/[0.04] px-3 py-2">
+              <Route size={15} />
+              {trip.routePoints.length} 个路线点
             </span>
           </div>
         </div>
@@ -123,10 +115,10 @@ export default function TripDetailPage() {
           </div>
         </div>
 
-        <div className="space-y-5">
-          <TripRouteExplorer points={trip.routePoints} photos={trip.photos} />
-        </div>
+        <TripDetailCalendar trip={trip} />
       </div>
+
+      <TripMemoryPhotoWall trip={trip} />
     </section>
   );
 }
