@@ -4,8 +4,8 @@ import { ArrowLeft, CalendarDays, ImageIcon, MapPinned } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AmapMap } from "@/components/amap-map";
 import { PageHeader } from "@/components/page-header";
+import { TripRouteExplorer } from "@/components/trip-route-explorer";
 import { fetchTrip } from "@/lib/api-client";
 import type { TripDraft } from "@/lib/trips";
 
@@ -124,22 +124,7 @@ export default function TripDetailPage() {
         </div>
 
         <div className="space-y-5">
-          <AmapMap points={trip.routePoints} />
-          <div className="rounded-lg border border-black/10 bg-white p-5">
-            <div className="text-sm font-semibold text-black/65">照片墙</div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-              {trip.photos.map((photo) => (
-                <div key={photo.id} className="h-32 overflow-hidden rounded-lg bg-[#eef1ec]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.dataUrl ?? photo.previewUrl}
-                    alt={photo.fileName}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          <TripRouteExplorer points={trip.routePoints} photos={trip.photos} />
         </div>
       </div>
     </section>
