@@ -1,12 +1,18 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { assertSafeTestDatabaseUrl } from "@/server/db/test-database";
 
-const databaseUrl = "postgresql://root:lch20201710.@localhost:5432/eleswhere";
+const shouldRunDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "true";
+const describeDbIntegration = shouldRunDbIntegration ? describe : describe.skip;
+const databaseUrl =
+  process.env.TEST_DATABASE_URL ??
+  "postgresql://root:lch20201710.@localhost:5432/eleswhere_test";
 const uploadDir = path.join(process.cwd(), ".test-uploads");
 
-describe("旅行后端完整链路", () => {
+describeDbIntegration("旅行后端完整链路", () => {
   beforeAll(async () => {
+    assertSafeTestDatabaseUrl(databaseUrl);
     vi.stubEnv("DATABASE_URL", databaseUrl);
     vi.stubEnv("UPLOAD_DIR", uploadDir);
     vi.stubEnv("NEXT_PUBLIC_UPLOAD_BASE_URL", "/uploads");
