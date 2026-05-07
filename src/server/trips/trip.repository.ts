@@ -30,6 +30,7 @@ const tripDetailInclude = {
       photos: { include: { photo: true } },
     },
   },
+  buildTask: true,
 };
 
 export async function getDefaultUserId(client: PrismaClient | Prisma.TransactionClient = prisma) {
@@ -177,6 +178,7 @@ export async function listTrips() {
       photos: true,
       routePoints: { orderBy: { sortOrder: "asc" } },
       days: { orderBy: { dayIndex: "asc" } },
+      buildTask: true,
     },
   });
 }

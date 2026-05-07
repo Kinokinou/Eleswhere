@@ -5,6 +5,7 @@ import {
   Download,
   Edit3,
   ImageIcon,
+  Loader2,
   MoreHorizontal,
   Plus,
   Share2,
@@ -53,7 +54,7 @@ export default function TripsPage() {
     <section>
       <PageHeader
         title="Trips"
-        description="浏览已经创建的旅行记录。一阶段数据保存在本地浏览器。"
+        description="查看正式旅行、构建中的任务，以及构建失败的占位卡片。"
         action={
           <Link
             href="/trips/new"
@@ -69,122 +70,28 @@ export default function TripsPage() {
         <div className="rounded-lg border border-dashed border-black/20 bg-white p-10 text-center">
           <p className="text-lg font-semibold">还没有旅行记录</p>
           <p className="mt-2 text-sm text-black/55">
-            新建旅行后，数据库里的记录会显示在这里。
+            新建旅行后，构建任务和完成后的旅行都会显示在这里。
           </p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleTrips.map((trip) => {
-          const cover = trip.photos.find((photo) => photo.id === trip.coverPhotoId);
-
-          return (
-            <article
+          {visibleTrips.map((trip) => (
+            <TripCard
               key={trip.id}
-              className="relative overflow-visible rounded-lg border border-black/10 bg-white"
-            >
-              <div className="overflow-hidden rounded-t-lg">
-              <div className="flex h-48 items-center justify-center bg-[#eef1ec]">
-                {cover ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={cover.dataUrl ?? cover.previewUrl}
-                    alt={trip.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <ImageIcon className="text-black/35" size={32} />
-                )}
-              </div>
-              </div>
-              <div className="p-5">
-                <h2 className="text-xl font-semibold">{trip.title}</h2>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-black/55">
-                  {trip.subtitle ?? "由照片时间和地点自动整理出的旅行记录。"}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs text-black/55">
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-black/[0.04] px-2 py-1">
-                    <CalendarDays size={13} />
-                    {trip.startDate} - {trip.endDate}
-                  </span>
-                  <span className="rounded-lg bg-black/[0.04] px-2 py-1">
-                    {trip.photos.length} 张照片
-                  </span>
-                  <span className="rounded-lg bg-black/[0.04] px-2 py-1">
-                    {trip.days.length} 天
-                  </span>
-                </div>
-                <Link
-                  href={`/trips/${trip.id}`}
-                  className="mt-5 inline-flex h-10 items-center rounded-lg border border-black/10 px-4 text-sm font-semibold"
-                >
-                  查看详情
-                </Link>
-              </div>
-              <div className="absolute bottom-4 right-4">
-                <button
-                  type="button"
-                  aria-label="打开旅行操作菜单"
-                  onClick={() =>
-                    setOpenMenuTripId((current) =>
-                      current === trip.id ? null : trip.id,
-                    )
-                  }
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 bg-white text-black shadow-sm hover:bg-[#f7f7f5]"
-                >
-                  <MoreHorizontal size={18} />
-                </button>
-
-                {openMenuTripId === trip.id ? (
-                  <div
-                    role="menu"
-                    className="absolute bottom-11 right-0 z-10 w-44 overflow-hidden rounded-lg border border-black/10 bg-white p-1 text-sm shadow-lg"
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-black/70"
-                      disabled
-                    >
-                      <Edit3 size={15} />
-                      编辑（暂未实现）
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-black/70"
-                      disabled
-                    >
-                      <Share2 size={15} />
-                      分享（暂未实现）
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-black/70"
-                      disabled
-                    >
-                      <Download size={15} />
-                      导出（暂未实现）
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setDeletingTrip(trip);
-                        setOpenMenuTripId(null);
-                        setDeleteMessage(null);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 size={15} />
-                      删除旅行
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </article>
-          );
-        })}
+              trip={trip}
+              openMenuTripId={openMenuTripId}
+              onToggleMenu={() =>
+                setOpenMenuTripId((current) =>
+                  current === trip.id ? null : trip.id,
+                )
+              }
+              onDelete={() => {
+                setDeletingTrip(trip);
+                setOpenMenuTripId(null);
+                setDeleteMessage(null);
+              }}
+            />
+          ))}
         </div>
       )}
 
@@ -199,7 +106,7 @@ export default function TripsPage() {
               <div>
                 <h2 className="text-lg font-semibold">确认删除旅行</h2>
                 <p className="mt-2 text-sm leading-6 text-black/55">
-                  删除后会移除「{deletingTrip.title}」和关联照片记录。这个操作不可撤销。
+                  删除后会移除“{deletingTrip.title}”和关联照片记录。构建失败卡片删除后，回退到草稿箱的草稿仍会保留。
                 </p>
               </div>
               <button
@@ -239,5 +146,174 @@ export default function TripsPage() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function TripCard({
+  trip,
+  openMenuTripId,
+  onToggleMenu,
+  onDelete,
+}: {
+  trip: TripDraft;
+  openMenuTripId: string | null;
+  onToggleMenu: () => void;
+  onDelete: () => void;
+}) {
+  const cover = trip.photos.find((photo) => photo.id === trip.coverPhotoId);
+  const status = trip.status ?? "ready";
+  const isReady = status === "ready";
+  const isBuilding = status === "building";
+  const isFailed = status === "failed";
+
+  return (
+    <article className="relative overflow-visible rounded-lg border border-black/10 bg-white">
+      <div className="overflow-hidden rounded-t-lg">
+        <div className="flex h-48 items-center justify-center bg-[#eef1ec]">
+          {cover ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={cover.dataUrl ?? cover.previewUrl}
+              alt={trip.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ImageIcon className="text-black/35" size={32} />
+          )}
+        </div>
+      </div>
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-xl font-semibold">{trip.title}</h2>
+          <StatusBadge trip={trip} />
+        </div>
+        <p className="mt-2 line-clamp-2 text-sm leading-6 text-black/55">
+          {trip.subtitle ?? "由照片时间和地点自动整理出的旅行记录。"}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-black/55">
+          <span className="inline-flex items-center gap-1 rounded-lg bg-black/[0.04] px-2 py-1">
+            <CalendarDays size={13} />
+            {trip.startDate} - {trip.endDate}
+          </span>
+          <span className="rounded-lg bg-black/[0.04] px-2 py-1">
+            {trip.photos.length} 张照片
+          </span>
+          <span className="rounded-lg bg-black/[0.04] px-2 py-1">
+            {trip.days.length} 天
+          </span>
+        </div>
+
+        {isBuilding ? (
+          <div className="mt-5 rounded-lg bg-black/[0.04] p-3 text-sm text-black/60">
+            构建中：{trip.buildTask?.processedPhotos ?? 0}/
+            {trip.buildTask?.totalPhotos ?? trip.photos.length} 张照片已处理。
+          </div>
+        ) : null}
+
+        {isFailed ? (
+          <div className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+            构建失败。任务已撤回草稿箱，你可以删除这个失败卡片。
+          </div>
+        ) : null}
+
+        {isReady ? (
+          <Link
+            href={`/trips/${trip.id}`}
+            className="mt-5 inline-flex h-10 items-center rounded-lg border border-black/10 px-4 text-sm font-semibold"
+          >
+            查看详情
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="mt-5 inline-flex h-10 items-center rounded-lg border border-black/10 px-4 text-sm font-semibold text-black/35"
+          >
+            {isBuilding ? "构建完成后可查看" : "构建失败不可查看"}
+          </button>
+        )}
+      </div>
+
+      {!isBuilding ? (
+        <div className="absolute bottom-4 right-4">
+          <button
+            type="button"
+            aria-label="打开旅行操作菜单"
+            onClick={onToggleMenu}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 bg-white text-black shadow-sm hover:bg-[#f7f7f5]"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+
+          {openMenuTripId === trip.id ? (
+            <div
+              role="menu"
+              className="absolute bottom-11 right-0 z-10 w-44 overflow-hidden rounded-lg border border-black/10 bg-white p-1 text-sm shadow-lg"
+            >
+              {isReady ? (
+                <>
+                  <MenuPlaceholder icon={<Edit3 size={15} />} label="编辑（暂未实现）" />
+                  <MenuPlaceholder icon={<Share2 size={15} />} label="分享（暂未实现）" />
+                  <MenuPlaceholder icon={<Download size={15} />} label="导出（暂未实现）" />
+                </>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={onDelete}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-red-600 hover:bg-red-50"
+              >
+                <Trash2 size={15} />
+                删除旅行
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function StatusBadge({ trip }: { trip: TripDraft }) {
+  const status = trip.status ?? "ready";
+  if (status === "building") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-lg bg-[#d8f35f] px-2 py-1 text-xs font-semibold">
+        <Loader2 className="animate-spin" size={12} />
+        构建中
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="rounded-lg bg-red-50 px-2 py-1 text-xs font-semibold text-red-600">
+        构建失败
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-lg bg-black/[0.04] px-2 py-1 text-xs font-semibold text-black/55">
+      已完成
+    </span>
+  );
+}
+
+function MenuPlaceholder({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-black/70"
+      disabled
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

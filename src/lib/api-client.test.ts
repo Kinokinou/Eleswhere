@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCreateTripRequest } from "./api-client";
+import { buildCreateTripRequest, chunkClientPhotos } from "./api-client";
 import type { TripDraft } from "./trips";
 
 const draft: TripDraft = {
@@ -75,5 +75,23 @@ describe("buildCreateTripRequest", () => {
       placeName: "珠海长隆",
     });
     expect(request.days[0].segments[0].photoIds).toEqual(["photo-client"]);
+  });
+});
+
+describe("chunkClientPhotos", () => {
+  it("前端上传草稿照片时按 20 张分块，避免一次请求过大", () => {
+    const photos = Array.from({ length: 45 }, (_, index) => ({
+      clientId: `photo-${index + 1}`,
+      file: new File([new Uint8Array([1])], `IMG_${index + 1}.jpg`, {
+        type: "image/jpeg",
+      }),
+    }));
+
+    const chunks = chunkClientPhotos(photos, 20);
+
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toHaveLength(20);
+    expect(chunks[1]).toHaveLength(20);
+    expect(chunks[2]).toHaveLength(5);
   });
 });

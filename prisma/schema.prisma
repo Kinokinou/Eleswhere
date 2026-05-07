@@ -6,6 +6,32 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TripStatus {
+  BUILDING
+  READY
+  FAILED
+}
+
+enum TripDraftStatus {
+  DRAFT
+  BUILDING
+  BUILT
+}
+
+enum TripBuildTaskStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum TripBuildBatchStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 model User {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
@@ -14,7 +40,8 @@ model User {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  trips Trip[]
+  trips      Trip[]
+  tripDrafts TripDraft[]
 
   @@map("users")
 }
@@ -27,6 +54,8 @@ model Trip {
   startDate    DateTime @map("start_date") @db.Date
   endDate      DateTime @map("end_date") @db.Date
   coverPhotoId String?  @map("cover_photo_id") @db.Uuid
+  draftId      String?  @map("draft_id") @db.Uuid
+  status       TripStatus @default(READY)
   notes        String?
   tags         String[] @default([])
   moodTags     String[] @default([]) @map("mood_tags")
@@ -34,17 +63,22 @@ model Trip {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user        User         @relation(fields: [userId], references: [id])
+  draft       TripDraft?   @relation(fields: [draftId], references: [id], onDelete: SetNull)
   photos      Photo[]
   days        TripDay[]
   routePoints RoutePoint[]
+  buildTask   TripBuildTask?
 
   @@index([userId])
+  @@index([status])
+  @@index([draftId])
   @@map("trips")
 }
 
 model Photo {
   id               String   @id @default(uuid()) @db.Uuid
   tripId           String   @map("trip_id") @db.Uuid
+  sourceDraftPhotoId String? @unique @map("source_draft_photo_id") @db.Uuid
   fileName         String   @map("file_name")
   originalName     String   @map("original_name")
   mimeType         String   @map("mime_type")
@@ -69,12 +103,118 @@ model Photo {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   trip                Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  sourceDraftPhoto    TripDraftPhoto?     @relation(fields: [sourceDraftPhotoId], references: [id], onDelete: SetNull)
   segmentPhotos       TripSegmentPhoto[]
   routePointPhotos    RoutePointPhoto[]
   representativePoint RoutePoint[]        @relation("RoutePointRepresentativePhoto")
 
   @@index([tripId])
   @@map("photos")
+}
+
+model TripDraft {
+  id                 String          @id @default(uuid()) @db.Uuid
+  userId             String          @map("user_id") @db.Uuid
+  title              String
+  subtitle           String?
+  startDate          DateTime        @map("start_date") @db.Date
+  endDate            DateTime        @map("end_date") @db.Date
+  coverClientPhotoId String?         @map("cover_client_photo_id")
+  notes              String?
+  tags               String[]        @default([])
+  moodTags           String[]        @default([]) @map("mood_tags")
+  status             TripDraftStatus @default(DRAFT)
+  failureMessage     String?         @map("failure_message")
+  daysJson           Json            @map("days_json")
+  routePointsJson    Json            @map("route_points_json")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user       User            @relation(fields: [userId], references: [id])
+  photos     TripDraftPhoto[]
+  trips      Trip[]
+  buildTasks TripBuildTask[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("trip_drafts")
+}
+
+model TripDraftPhoto {
+  id               String   @id @default(uuid()) @db.Uuid
+  draftId          String   @map("draft_id") @db.Uuid
+  clientId         String   @map("client_id")
+  fileName         String   @map("file_name")
+  originalName     String   @map("original_name")
+  mimeType         String   @map("mime_type")
+  fileSize         Int      @map("file_size")
+  storagePath      String   @map("storage_path")
+  publicUrl        String   @map("public_url")
+  takenAt          DateTime @map("taken_at") @db.Timestamptz(6)
+  lat              Float?
+  lng              Float?
+  country          String?
+  province         String?
+  city             String?
+  district         String?
+  township         String?
+  adcode           String?
+  poiName          String?  @map("poi_name")
+  aoiName          String?  @map("aoi_name")
+  placeName        String?  @map("place_name")
+  formattedAddress String?  @map("formatted_address")
+  width            Int?
+  height           Int?
+  sortOrder        Int      @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  draft      TripDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  formalPhoto Photo?
+
+  @@unique([draftId, clientId])
+  @@index([draftId])
+  @@map("trip_draft_photos")
+}
+
+model TripBuildTask {
+  id              String              @id @default(uuid()) @db.Uuid
+  draftId         String              @map("draft_id") @db.Uuid
+  tripId          String              @unique @map("trip_id") @db.Uuid
+  status          TripBuildTaskStatus @default(QUEUED)
+  totalPhotos     Int                 @default(0) @map("total_photos")
+  processedPhotos Int                 @default(0) @map("processed_photos")
+  errorMessage    String?             @map("error_message")
+  startedAt       DateTime?           @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime?           @map("finished_at") @db.Timestamptz(6)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  draft   TripDraft        @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  trip    Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  batches TripBuildBatch[]
+
+  @@index([draftId])
+  @@index([status])
+  @@map("trip_build_tasks")
+}
+
+model TripBuildBatch {
+  id           String               @id @default(uuid()) @db.Uuid
+  taskId       String               @map("task_id") @db.Uuid
+  batchIndex   Int                  @map("batch_index")
+  status       TripBuildBatchStatus @default(PENDING)
+  attemptCount Int                  @default(0) @map("attempt_count")
+  photoIds     String[]             @map("photo_ids")
+  errorMessage String?              @map("error_message")
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  task TripBuildTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, batchIndex])
+  @@index([taskId])
+  @@index([status])
+  @@map("trip_build_batches")
 }
 
 model TripDay {

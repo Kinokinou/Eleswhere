@@ -13,6 +13,7 @@ export type GeoAddress = {
 
 export type PhotoMeta = {
   id: string;
+  draftPhotoId?: string;
   fileName: string;
   previewUrl: string;
   dataUrl?: string;
@@ -23,6 +24,14 @@ export type PhotoMeta = {
   placeName?: string;
   country?: string;
   selected: boolean;
+};
+
+export type TripBuildTaskMeta = {
+  id: string;
+  status: "queued" | "running" | "succeeded" | "failed";
+  totalPhotos: number;
+  processedPhotos: number;
+  errorMessage?: string;
 };
 
 export type TripSegment = {
@@ -68,6 +77,9 @@ export type TripDraft = {
   tags: string[];
   moodTags: string[];
   notes?: string;
+  status?: "draft" | "building" | "built" | "ready" | "failed";
+  failureMessage?: string;
+  buildTask?: TripBuildTaskMeta;
   photos: PhotoMeta[];
   days: TripDay[];
   routePoints: RoutePoint[];

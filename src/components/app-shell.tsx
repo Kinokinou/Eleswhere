@@ -3,6 +3,7 @@
 import {
   BarChart3,
   CalendarDays,
+  FileText,
   Map,
   MessageCircle,
   Settings,
@@ -16,6 +17,7 @@ const navItems = [
   { label: "Dashboard", href: "/", icon: BarChart3 },
   { label: "Map", href: "/map", icon: Map },
   { label: "Trips", href: "/trips", icon: CalendarDays },
+  { label: "Drafts", href: "/drafts", icon: FileText },
   { label: "Chat", href: "/chat", icon: MessageCircle },
   { label: "Yearly Report", href: "/yearly-report", icon: Sparkles },
   { label: "Settings", href: "/settings", icon: Settings },

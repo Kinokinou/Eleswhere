@@ -10,14 +10,16 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import NewTripPage from "./page";
 import {
-  createTripFromDraft,
-  uploadPhotos,
+  saveTripDraftWithPhotos,
+  startTripDraftBuild,
 } from "@/lib/api-client";
 import { buildDraftFromPhotos, parsePhotoFilesWithReport } from "@/lib/photos";
 
+const routerPush = vi.fn();
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push: routerPush,
   }),
 }));
 
@@ -34,8 +36,8 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-client")>();
   return {
     ...actual,
-    uploadPhotos: vi.fn(),
-    createTripFromDraft: vi.fn(),
+    saveTripDraftWithPhotos: vi.fn(),
+    startTripDraftBuild: vi.fn(),
   };
 });
 
@@ -66,68 +68,115 @@ describe("NewTripPage", () => {
     vi.clearAllMocks();
   });
 
-  it("连续点击创建旅行时只触发一次上传和创建", async () => {
-    vi.mocked(parsePhotoFilesWithReport).mockResolvedValue({
-      photos: [photo],
-      degradedCount: 0,
+  it("先保存草稿，保存成功后才允许开始构建", async () => {
+    prepareParsedDraft();
+    vi.mocked(saveTripDraftWithPhotos).mockResolvedValue({
+      ...draft,
+      id: "saved-draft",
     });
-    vi.mocked(buildDraftFromPhotos).mockReturnValue(draft);
-    vi.mocked(uploadPhotos).mockImplementation(
+
+    render(<NewTripPage />);
+    await selectFiles([makeFile("IMG_001.jpg", "image/jpeg")]);
+
+    const initialBuildButton = await screen.findByRole("button", {
+      name: "开始构建",
+    });
+    expect((initialBuildButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+
+    await screen.findByText("草稿已保存，可以开始构建。");
+    expect(saveTripDraftWithPhotos).toHaveBeenCalledTimes(1);
+    expect(
+      (screen.getByRole("button", { name: "开始构建" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(startTripDraftBuild).not.toHaveBeenCalled();
+  });
+
+  it("开始构建只调用任务接口，成功后跳转到 Trips", async () => {
+    prepareParsedDraft();
+    vi.mocked(saveTripDraftWithPhotos).mockResolvedValue({
+      ...draft,
+      id: "saved-draft",
+    });
+    vi.mocked(startTripDraftBuild).mockResolvedValue({
+      id: "task-1",
+      draftId: "saved-draft",
+      tripId: "trip-building",
+      status: "queued",
+      totalPhotos: 1,
+      processedPhotos: 0,
+    });
+
+    render(<NewTripPage />);
+    await selectFiles([makeFile("IMG_001.jpg", "image/jpeg")]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
+    await screen.findByText("草稿已保存，可以开始构建。");
+    fireEvent.click(screen.getByRole("button", { name: "开始构建" }));
+
+    await waitFor(() => {
+      expect(startTripDraftBuild).toHaveBeenCalledWith("saved-draft");
+      expect(routerPush).toHaveBeenCalledWith("/trips");
+    });
+  });
+
+  it("连续点击开始构建时只触发一次任务启动", async () => {
+    prepareParsedDraft();
+    vi.mocked(saveTripDraftWithPhotos).mockResolvedValue({
+      ...draft,
+      id: "saved-draft",
+    });
+    vi.mocked(startTripDraftBuild).mockImplementation(
       () =>
         new Promise((resolve) =>
           window.setTimeout(
             () =>
-              resolve([
-                {
-                  clientId: "photo-1",
-                  fileName: "stored.jpg",
-                  originalName: "IMG_001.jpg",
-                  storagePath: "D:/Eleswhere/.uploads/stored.jpg",
-                  publicUrl: "/uploads/stored.jpg",
-                  mimeType: "image/jpeg",
-                  fileSize: 1024,
-                },
-              ]),
+              resolve({
+                id: "task-1",
+                draftId: "saved-draft",
+                tripId: "trip-building",
+                status: "queued",
+                totalPhotos: 1,
+                processedPhotos: 0,
+              }),
             20,
           ),
         ),
     );
-    vi.mocked(createTripFromDraft).mockResolvedValue({
-      ...draft,
-      id: "trip-created",
-    });
 
     render(<NewTripPage />);
     await selectFiles([makeFile("IMG_001.jpg", "image/jpeg")]);
 
-    const button = await screen.findByRole("button", { name: "创建旅行" });
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
+    await screen.findByText("草稿已保存，可以开始构建。");
+
+    const button = screen.getByRole("button", { name: "开始构建" });
     fireEvent.click(button);
     fireEvent.click(button);
 
-    await screen.findByText("正在创建...");
     await waitFor(() => {
-      expect(uploadPhotos).toHaveBeenCalledTimes(1);
-      expect(createTripFromDraft).toHaveBeenCalledTimes(1);
+      expect(screen.getAllByText("正在启动构建...").length).toBeGreaterThan(0);
+    });
+    await waitFor(() => {
+      expect(startTripDraftBuild).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("创建失败后恢复按钮且保留草稿", async () => {
-    vi.mocked(parsePhotoFilesWithReport).mockResolvedValue({
-      photos: [photo],
-      degradedCount: 0,
-    });
-    vi.mocked(buildDraftFromPhotos).mockReturnValue(draft);
-    vi.mocked(uploadPhotos).mockRejectedValue(new Error("上传失败"));
+  it("保存失败后恢复按钮且保留草稿", async () => {
+    prepareParsedDraft();
+    vi.mocked(saveTripDraftWithPhotos).mockRejectedValue(new Error("保存失败"));
 
     render(<NewTripPage />);
     await selectFiles([makeFile("IMG_001.jpg", "image/jpeg")]);
 
-    fireEvent.click(await screen.findByRole("button", { name: "创建旅行" }));
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
 
-    expect(await screen.findByText("上传失败")).not.toBeNull();
+    expect(await screen.findByText("保存失败")).not.toBeNull();
     expect(
       (screen.getByRole("button", {
-        name: "创建旅行",
+        name: "保存草稿",
       }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(screen.getByDisplayValue("测试旅行")).not.toBeNull();
@@ -146,6 +195,14 @@ describe("NewTripPage", () => {
     expect(screen.getByText("等待照片生成旅行草稿")).not.toBeNull();
   });
 });
+
+function prepareParsedDraft() {
+  vi.mocked(parsePhotoFilesWithReport).mockResolvedValue({
+    photos: [photo],
+    degradedCount: 0,
+  });
+  vi.mocked(buildDraftFromPhotos).mockReturnValue(draft);
+}
 
 async function selectFiles(files: File[]) {
   const input = document.querySelector("input[type='file']");

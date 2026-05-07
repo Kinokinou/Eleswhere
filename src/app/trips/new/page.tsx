@@ -6,8 +6,8 @@ import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
-  createTripFromDraft,
-  uploadPhotos,
+  saveTripDraftWithPhotos,
+  startTripDraftBuild,
 } from "@/lib/api-client";
 import {
   buildDraftFromPhotos,
@@ -22,10 +22,13 @@ export default function NewTripPage() {
   const [photos, setPhotos] = useState<PhotoMeta[]>([]);
   const [photoFiles, setPhotoFiles] = useState<Record<string, File>>({});
   const [draft, setDraft] = useState<TripDraft | null>(null);
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isBuilding, setIsBuilding] = useState(false);
   const [message, setMessage] = useState("请选择 JPG / JPEG / PNG 照片。");
-  const isCreatingRef = useRef(false);
+  const isSavingRef = useRef(false);
+  const isBuildingRef = useRef(false);
 
   const selectedPhotos = useMemo(
     () => photos.filter((photo) => photo.selected),
@@ -45,6 +48,7 @@ export default function NewTripPage() {
       return;
     }
 
+    setSavedDraftId(null);
     setIsParsing(true);
     setMessage("正在读取照片时间、GPS，并尝试识别地点...");
 
@@ -59,10 +63,10 @@ export default function NewTripPage() {
           nextPhotoFiles[photo.id] = file;
         }
       });
-      const nextDraft = buildDraftFromPhotos(nextPhotos);
+
       setPhotos(nextPhotos);
       setPhotoFiles(nextPhotoFiles);
-      setDraft(nextDraft);
+      setDraft(buildDraftFromPhotos(nextPhotos));
       setMessage(
         buildImportMessage(filterResult, parsedPhotos.length, degradedCount),
       );
@@ -74,6 +78,13 @@ export default function NewTripPage() {
     }
   }
 
+  function markDraftChanged() {
+    if (savedDraftId) {
+      setMessage("草稿内容已变更，请重新保存后再开始构建。");
+    }
+    setSavedDraftId(null);
+  }
+
   function removePhoto(photoId: string) {
     const nextPhotos = photos.filter((photo) => photo.id !== photoId);
     const nextPhotoFiles = { ...photoFiles };
@@ -81,10 +92,12 @@ export default function NewTripPage() {
     setPhotos(nextPhotos);
     setPhotoFiles(nextPhotoFiles);
     setDraft(nextPhotos.length > 0 ? buildDraftFromPhotos(nextPhotos) : null);
+    markDraftChanged();
   }
 
   function updateDraftTitle(title: string) {
     setDraft((current) => (current ? { ...current, title } : current));
+    markDraftChanged();
   }
 
   function updateDayTitle(dayId: string, title: string) {
@@ -98,36 +111,53 @@ export default function NewTripPage() {
           }
         : current,
     );
+    markDraftChanged();
   }
 
   function selectCover(photoId: string) {
     setDraft((current) =>
       current ? { ...current, coverPhotoId: photoId } : current,
     );
+    markDraftChanged();
   }
 
-  async function createTrip() {
-    if (!draft || isCreatingRef.current) {
+  async function saveDraft() {
+    if (!draft || isSavingRef.current) {
       return;
     }
 
-    isCreatingRef.current = true;
-    setIsCreating(true);
-    setMessage("正在上传照片并保存到数据库...");
+    isSavingRef.current = true;
+    setIsSaving(true);
+    setMessage("正在保存草稿和上传照片...");
 
     try {
-      const uploadedPhotos = await uploadPhotos(
-        draft.photos.map((photo) => ({
-          clientId: photo.id,
-          file: photoFiles[photo.id],
-        })).filter((item): item is { clientId: string; file: File } => Boolean(item.file)),
-      );
-      const trip = await createTripFromDraft(draft, uploadedPhotos);
-      router.push(`/trips/${trip.id}`);
+      const savedDraft = await saveTripDraftWithPhotos(draft, photoFiles);
+      setSavedDraftId(savedDraft.id);
+      setMessage("草稿已保存，可以开始构建。");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "创建旅行失败");
-      isCreatingRef.current = false;
-      setIsCreating(false);
+      setMessage(error instanceof Error ? error.message : "保存草稿失败");
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
+  async function startBuild() {
+    if (!savedDraftId || isBuildingRef.current) {
+      return;
+    }
+
+    isBuildingRef.current = true;
+    setIsBuilding(true);
+    setMessage("正在启动构建...");
+
+    try {
+      await startTripDraftBuild(savedDraftId);
+      router.push("/trips");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "启动构建任务失败");
+      isBuildingRef.current = false;
+      setIsBuilding(false);
     }
   }
 
@@ -135,7 +165,7 @@ export default function NewTripPage() {
     <section>
       <PageHeader
         title="Create a trip"
-        description="从照片创建一次旅行。系统会读取时间和 GPS，并通过后端调用高德逆地理编码。"
+        description="从照片创建旅行草稿。先保存草稿，再启动后端分批构建任务。"
       />
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -261,21 +291,38 @@ export default function NewTripPage() {
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={createTrip}
-                disabled={isCreating}
-                className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    正在创建...
-                  </>
-                ) : (
-                  "创建旅行"
-                )}
-              </button>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={saveDraft}
+                  disabled={isSaving || isBuilding}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-black/10 bg-white text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} />
+                      正在保存...
+                    </>
+                  ) : (
+                    "保存草稿"
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={startBuild}
+                  disabled={!savedDraftId || isSaving || isBuilding}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isBuilding ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} />
+                      正在启动构建...
+                    </>
+                  ) : (
+                    "开始构建"
+                  )}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex min-h-96 flex-col items-center justify-center rounded-lg bg-[#f7f7f5] text-center">
@@ -303,9 +350,7 @@ function buildImportMessage(
     messages.push(`${importedCount} 张照片已导入`);
   }
   if (degradedCount > 0) {
-    messages.push(
-      `其中 ${degradedCount} 张读取信息失败，已按上一张照片归组`,
-    );
+    messages.push(`其中 ${degradedCount} 张读取信息失败，已按上一张照片归组`);
   }
   if (filterResult.skippedVideos > 0) {
     messages.push(
@@ -318,9 +363,7 @@ function buildImportMessage(
     );
   }
   if (filterResult.skippedOversized > 0) {
-    messages.push(
-      `已跳过 ${filterResult.skippedOversized} 张超过 10MB 的图片`,
-    );
+    messages.push(`已跳过 ${filterResult.skippedOversized} 张超过 10MB 的图片`);
   }
 
   return messages.length > 0

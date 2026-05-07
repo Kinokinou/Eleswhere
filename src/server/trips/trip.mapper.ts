@@ -1,4 +1,4 @@
-import type { Photo, RoutePoint, TripDay, TripSegment } from "@prisma/client";
+import type { Photo, RoutePoint, TripBuildTask, TripDay, TripSegment } from "@prisma/client";
 import type { TripWithRelations } from "./trip.repository";
 
 type ListTrip = {
@@ -10,9 +10,11 @@ type ListTrip = {
   coverPhotoId: string | null;
   tags: string[];
   moodTags: string[];
+  status: string;
   photos: Photo[];
   days: TripDay[];
   routePoints: RoutePoint[];
+  buildTask: TripBuildTask | null;
 };
 
 export function mapTripListItem(trip: ListTrip) {
@@ -25,6 +27,8 @@ export function mapTripListItem(trip: ListTrip) {
     coverPhotoId: trip.coverPhotoId ?? undefined,
     tags: trip.tags,
     moodTags: trip.moodTags,
+    status: trip.status.toLowerCase(),
+    buildTask: trip.buildTask ? mapBuildTask(trip.buildTask) : undefined,
     photos: trip.photos.map(mapPhoto),
     days: trip.days.map((day) => ({
       id: day.id,
@@ -59,6 +63,8 @@ export function mapTripDetail(trip: TripWithRelations) {
     notes: trip.notes ?? undefined,
     tags: trip.tags,
     moodTags: trip.moodTags,
+    status: trip.status.toLowerCase(),
+    buildTask: trip.buildTask ? mapBuildTask(trip.buildTask) : undefined,
     photos: trip.photos.map(mapPhoto),
     days: trip.days.map((day) => ({
       id: day.id,
@@ -83,6 +89,16 @@ export function mapTripDetail(trip: TripWithRelations) {
     })),
     createdAt: trip.createdAt.toISOString(),
     updatedAt: trip.updatedAt.toISOString(),
+  };
+}
+
+function mapBuildTask(task: TripBuildTask) {
+  return {
+    id: task.id,
+    status: task.status.toLowerCase(),
+    totalPhotos: task.totalPhotos,
+    processedPhotos: task.processedPhotos,
+    errorMessage: task.errorMessage ?? undefined,
   };
 }
 
