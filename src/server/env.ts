@@ -2,9 +2,9 @@ import path from "node:path";
 import { z } from "zod";
 
 const serverEnvSchema = z.object({
-  DATABASE_URL: z.string().min(1, "缺少 DATABASE_URL，请先配置数据库连接"),
-  UPLOAD_DIR: z.string().min(1).default(path.join(process.cwd(), ".uploads")),
-  NEXT_PUBLIC_UPLOAD_BASE_URL: z.string().min(1).default("/uploads"),
+  DATABASE_URL: requiredString("DATABASE_URL", "数据库连接"),
+  UPLOAD_DIR: optionalString(path.join(process.cwd(), ".uploads")),
+  NEXT_PUBLIC_UPLOAD_BASE_URL: optionalString("/uploads"),
 });
 
 export type ServerEnv = {
@@ -30,4 +30,22 @@ export function loadServerEnv(): ServerEnv {
     uploadDir: result.data.UPLOAD_DIR,
     uploadBaseUrl: result.data.NEXT_PUBLIC_UPLOAD_BASE_URL,
   };
+}
+
+function requiredString(key: string, label: string) {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : value),
+    z
+      .string({
+        error: `缺少 ${key}，请先配置${label}`,
+      })
+      .min(1, `缺少 ${key}，请先配置${label}`),
+  );
+}
+
+function optionalString(defaultValue: string) {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : value),
+    z.string().min(1).default(defaultValue),
+  );
 }
