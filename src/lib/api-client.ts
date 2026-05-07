@@ -31,6 +31,19 @@ export async function fetchTrip(id: string): Promise<TripDraft | null> {
   return payload.trip ?? null;
 }
 
+export async function deleteTrip(id: string): Promise<{ success: boolean }> {
+  const response = await fetch(`/api/trips/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message ?? "删除旅行失败");
+  }
+
+  return response.json();
+}
+
 export async function uploadPhotos(
   photos: Array<{ clientId: string; file: File }>,
 ): Promise<UploadedPhotoClientResult[]> {
