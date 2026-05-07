@@ -2,14 +2,19 @@
 
 import { ImageIcon, Loader2, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
   createTripFromDraft,
   uploadPhotos,
 } from "@/lib/api-client";
-import { buildDraftFromPhotos, parsePhotoFiles } from "@/lib/photos";
+import {
+  buildDraftFromPhotos,
+  filterImportFiles,
+  parsePhotoFilesWithReport,
+  type ImportFileFilterResult,
+} from "@/lib/photos";
 import type { PhotoMeta, TripDraft } from "@/lib/trips";
 
 export default function NewTripPage() {
@@ -18,7 +23,9 @@ export default function NewTripPage() {
   const [photoFiles, setPhotoFiles] = useState<Record<string, File>>({});
   const [draft, setDraft] = useState<TripDraft | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [message, setMessage] = useState("请选择 JPG / JPEG / PNG 照片。");
+  const isCreatingRef = useRef(false);
 
   const selectedPhotos = useMemo(
     () => photos.filter((photo) => photo.selected),
@@ -31,15 +38,23 @@ export default function NewTripPage() {
       return;
     }
 
+    const filterResult = filterImportFiles(files);
+    if (filterResult.acceptedFiles.length === 0) {
+      setMessage(buildImportMessage(filterResult, 0, 0));
+      event.target.value = "";
+      return;
+    }
+
     setIsParsing(true);
     setMessage("正在读取照片时间、GPS，并尝试识别地点...");
 
     try {
-      const parsedPhotos = await parsePhotoFiles(files);
+      const { photos: parsedPhotos, degradedCount } =
+        await parsePhotoFilesWithReport(filterResult.acceptedFiles);
       const nextPhotos = [...photos, ...parsedPhotos];
       const nextPhotoFiles = { ...photoFiles };
       parsedPhotos.forEach((photo, index) => {
-        const file = files[index];
+        const file = filterResult.acceptedFiles[index];
         if (file) {
           nextPhotoFiles[photo.id] = file;
         }
@@ -48,7 +63,9 @@ export default function NewTripPage() {
       setPhotos(nextPhotos);
       setPhotoFiles(nextPhotoFiles);
       setDraft(nextDraft);
-      setMessage("照片已解析完成，可以编辑旅行草稿。");
+      setMessage(
+        buildImportMessage(filterResult, parsedPhotos.length, degradedCount),
+      );
     } catch {
       setMessage("照片解析失败，请换一批照片重试。");
     } finally {
@@ -90,11 +107,12 @@ export default function NewTripPage() {
   }
 
   async function createTrip() {
-    if (!draft) {
+    if (!draft || isCreatingRef.current) {
       return;
     }
 
-    setIsParsing(true);
+    isCreatingRef.current = true;
+    setIsCreating(true);
     setMessage("正在上传照片并保存到数据库...");
 
     try {
@@ -108,8 +126,8 @@ export default function NewTripPage() {
       router.push(`/trips/${trip.id}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "创建旅行失败");
-    } finally {
-      setIsParsing(false);
+      isCreatingRef.current = false;
+      setIsCreating(false);
     }
   }
 
@@ -246,9 +264,17 @@ export default function NewTripPage() {
               <button
                 type="button"
                 onClick={createTrip}
-                className="mt-6 h-11 w-full rounded-lg bg-black text-sm font-semibold text-white"
+                disabled={isCreating}
+                className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                创建旅行
+                {isCreating ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    正在创建...
+                  </>
+                ) : (
+                  "创建旅行"
+                )}
               </button>
             </div>
           ) : (
@@ -264,6 +290,42 @@ export default function NewTripPage() {
       </div>
     </section>
   );
+}
+
+function buildImportMessage(
+  filterResult: ImportFileFilterResult,
+  importedCount: number,
+  degradedCount: number,
+) {
+  const messages: string[] = [];
+
+  if (importedCount > 0) {
+    messages.push(`${importedCount} 张照片已导入`);
+  }
+  if (degradedCount > 0) {
+    messages.push(
+      `其中 ${degradedCount} 张读取信息失败，已按上一张照片归组`,
+    );
+  }
+  if (filterResult.skippedVideos > 0) {
+    messages.push(
+      `已跳过 ${filterResult.skippedVideos} 个视频文件，当前版本暂不处理视频`,
+    );
+  }
+  if (filterResult.skippedUnsupported > 0) {
+    messages.push(
+      `已跳过 ${filterResult.skippedUnsupported} 个暂不支持的文件，仅支持 JPG/JPEG/PNG`,
+    );
+  }
+  if (filterResult.skippedOversized > 0) {
+    messages.push(
+      `已跳过 ${filterResult.skippedOversized} 张超过 10MB 的图片`,
+    );
+  }
+
+  return messages.length > 0
+    ? `${messages.join("；")}。`
+    : "照片已解析完成，可以编辑旅行草稿。";
 }
 
 function formatDateTime(value: string) {
