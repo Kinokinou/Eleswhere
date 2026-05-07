@@ -4,12 +4,9 @@ import { CalendarDays, ImageIcon, Plus } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { useStoredTrips } from "@/lib/hooks";
-import { mockTrip } from "@/lib/mock-data";
 
 export default function TripsPage() {
   const trips = useStoredTrips();
-
-  const visibleTrips = trips.length > 0 ? trips : [mockTrip];
 
   return (
     <section>
@@ -27,8 +24,16 @@ export default function TripsPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleTrips.map((trip) => {
+      {trips.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-black/20 bg-white p-10 text-center">
+          <p className="text-lg font-semibold">还没有旅行记录</p>
+          <p className="mt-2 text-sm text-black/55">
+            新建旅行后，数据库里的记录会显示在这里。
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {trips.map((trip) => {
           const cover = trip.photos.find((photo) => photo.id === trip.coverPhotoId);
 
           return (
@@ -75,7 +80,8 @@ export default function TripsPage() {
             </article>
           );
         })}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

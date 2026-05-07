@@ -6,14 +6,10 @@ import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/page-header";
 import { useStoredTrips } from "@/lib/hooks";
-import { mockTrip } from "@/lib/mock-data";
 
 export default function DashboardPage() {
   const trips = useStoredTrips();
-  const visibleTrips = useMemo(
-    () => (trips.length > 0 ? trips : [mockTrip]),
-    [trips],
-  );
+  const visibleTrips = trips;
   const stats = useMemo(() => {
     const days = visibleTrips.reduce((sum, trip) => sum + trip.days.length, 0);
     const routeCount = visibleTrips.reduce(
@@ -67,29 +63,37 @@ export default function DashboardPage() {
 
         <div className="rounded-lg border border-black/10 bg-[#d8f35f] p-6">
           <div className="text-sm font-semibold text-black/60">最近一次旅行</div>
-          <h3 className="mt-5 text-3xl font-semibold tracking-[0px]">
-            {recentTrip.title}
-          </h3>
-          <p className="mt-3 text-sm leading-6 text-black/65">
-            {recentTrip.subtitle ?? "从照片中自动生成旅行时间线。"}
-          </p>
-          <div className="mt-8 space-y-3">
-            {recentTrip.routePoints.slice(0, 4).map((point) => (
-              <div
-                key={point.id}
-                className="flex items-center justify-between rounded-lg bg-white/70 p-3 text-sm"
-              >
-                <span>{point.placeName}</span>
-                <span className="text-black/45">#{point.order}</span>
+          {recentTrip ? (
+            <>
+              <h3 className="mt-5 text-3xl font-semibold tracking-[0px]">
+                {recentTrip.title}
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-black/65">
+                {recentTrip.subtitle ?? "从照片中自动生成旅行时间线。"}
+              </p>
+              <div className="mt-8 space-y-3">
+                {recentTrip.routePoints.slice(0, 4).map((point) => (
+                  <div
+                    key={point.id}
+                    className="flex items-center justify-between rounded-lg bg-white/70 p-3 text-sm"
+                  >
+                    <span>{point.placeName}</span>
+                    <span className="text-black/45">#{point.order}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <Link
-            href={`/trips/${recentTrip.id}`}
-            className="mt-6 inline-flex h-10 items-center rounded-lg bg-black px-4 text-sm font-semibold text-white"
-          >
-            查看详情
-          </Link>
+              <Link
+                href={`/trips/${recentTrip.id}`}
+                className="mt-6 inline-flex h-10 items-center rounded-lg bg-black px-4 text-sm font-semibold text-white"
+              >
+                查看详情
+              </Link>
+            </>
+          ) : (
+            <div className="mt-8 rounded-lg bg-white/70 p-5 text-sm leading-6 text-black/60">
+              还没有数据库旅行记录。先进入新建旅行页，导入照片创建第一段旅途。
+            </div>
+          )}
         </div>
       </div>
     </section>

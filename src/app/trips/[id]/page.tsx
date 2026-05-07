@@ -3,29 +3,23 @@
 import { ArrowLeft, CalendarDays, ImageIcon, MapPinned } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AmapMap } from "@/components/amap-map";
 import { PageHeader } from "@/components/page-header";
-import { useStoredTrips } from "@/lib/hooks";
-import { mockTrip } from "@/lib/mock-data";
+import { fetchTrip } from "@/lib/api-client";
 import type { TripDraft } from "@/lib/trips";
 
 export default function TripDetailPage() {
   const params = useParams<{ id: string }>();
   const [trip, setTrip] = useState<TripDraft | null>(null);
-  const trips = useStoredTrips();
-  const resolvedTrip = useMemo(
-    () => trips.find((item) => item.id === params.id) ?? (params.id === mockTrip.id ? mockTrip : null),
-    [params.id, trips],
-  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setTrip(resolvedTrip);
+      fetchTrip(params.id).then(setTrip).catch(() => setTrip(null));
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [resolvedTrip]);
+  }, [params.id]);
 
   if (!trip) {
     return (

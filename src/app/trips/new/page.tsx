@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 import { PageHeader } from "@/components/page-header";
+import {
+  createTripFromDraft,
+  uploadPhotos,
+} from "@/lib/api-client";
 import { buildDraftFromPhotos, parsePhotoFiles } from "@/lib/photos";
-import { saveTrip } from "@/lib/storage";
 import type { PhotoMeta, TripDraft } from "@/lib/trips";
 
 export default function NewTripPage() {
   const router = useRouter();
   const [photos, setPhotos] = useState<PhotoMeta[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<Record<string, File>>({});
   const [draft, setDraft] = useState<TripDraft | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [message, setMessage] = useState("请选择 JPG / JPEG / PNG 照片。");
@@ -33,8 +37,16 @@ export default function NewTripPage() {
     try {
       const parsedPhotos = await parsePhotoFiles(files);
       const nextPhotos = [...photos, ...parsedPhotos];
+      const nextPhotoFiles = { ...photoFiles };
+      parsedPhotos.forEach((photo, index) => {
+        const file = files[index];
+        if (file) {
+          nextPhotoFiles[photo.id] = file;
+        }
+      });
       const nextDraft = buildDraftFromPhotos(nextPhotos);
       setPhotos(nextPhotos);
+      setPhotoFiles(nextPhotoFiles);
       setDraft(nextDraft);
       setMessage("照片已解析完成，可以编辑旅行草稿。");
     } catch {
@@ -47,7 +59,10 @@ export default function NewTripPage() {
 
   function removePhoto(photoId: string) {
     const nextPhotos = photos.filter((photo) => photo.id !== photoId);
+    const nextPhotoFiles = { ...photoFiles };
+    delete nextPhotoFiles[photoId];
     setPhotos(nextPhotos);
+    setPhotoFiles(nextPhotoFiles);
     setDraft(nextPhotos.length > 0 ? buildDraftFromPhotos(nextPhotos) : null);
   }
 
@@ -74,19 +89,28 @@ export default function NewTripPage() {
     );
   }
 
-  function createTrip() {
+  async function createTrip() {
     if (!draft) {
       return;
     }
 
-    const now = new Date().toISOString();
-    const trip = {
-      ...draft,
-      createdAt: now,
-      updatedAt: now,
-    };
-    saveTrip(trip);
-    router.push(`/trips/${trip.id}`);
+    setIsParsing(true);
+    setMessage("正在上传照片并保存到数据库...");
+
+    try {
+      const uploadedPhotos = await uploadPhotos(
+        draft.photos.map((photo) => ({
+          clientId: photo.id,
+          file: photoFiles[photo.id],
+        })).filter((item): item is { clientId: string; file: File } => Boolean(item.file)),
+      );
+      const trip = await createTripFromDraft(draft, uploadedPhotos);
+      router.push(`/trips/${trip.id}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "创建旅行失败");
+    } finally {
+      setIsParsing(false);
+    }
   }
 
   return (

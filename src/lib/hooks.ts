@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { readTrips } from "./storage";
+import { fetchTrips } from "./api-client";
 import type { TripDraft } from "./trips";
 
 export function useStoredTrips() {
   const [trips, setTrips] = useState<TripDraft[]>([]);
 
   useEffect(() => {
-    // 关键逻辑：延后读取 localStorage，避开 React 19 对 effect 同步 setState 的限制。
+    // 关键逻辑：页面数据从后端 API 读取，不再依赖浏览器 localStorage。
     const timer = window.setTimeout(() => {
-      setTrips(readTrips());
+      fetchTrips()
+        .then(setTrips)
+        .catch(() => setTrips([]));
     }, 0);
 
     return () => window.clearTimeout(timer);

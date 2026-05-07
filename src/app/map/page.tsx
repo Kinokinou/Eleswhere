@@ -4,14 +4,12 @@ import { useMemo } from "react";
 import { AmapMap } from "@/components/amap-map";
 import { PageHeader } from "@/components/page-header";
 import { useStoredTrips } from "@/lib/hooks";
-import { mockTrip } from "@/lib/mock-data";
 
 export default function MapPage() {
   const trips = useStoredTrips();
 
   const routePoints = useMemo(() => {
-    const source = trips.length > 0 ? trips : [mockTrip];
-    return source.flatMap((trip) => trip.routePoints);
+    return trips.flatMap((trip) => trip.routePoints);
   }, [trips]);
 
   return (
