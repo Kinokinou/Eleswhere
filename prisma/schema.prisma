@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  email     String?  @unique
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  trips Trip[]
+
+  @@map("users")
+}
+
+model Trip {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  title        String
+  subtitle     String?
+  startDate    DateTime @map("start_date") @db.Date
+  endDate      DateTime @map("end_date") @db.Date
+  coverPhotoId String?  @map("cover_photo_id") @db.Uuid
+  notes        String?
+  tags         String[] @default([])
+  moodTags     String[] @default([]) @map("mood_tags")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id])
+  photos      Photo[]
+  days        TripDay[]
+  routePoints RoutePoint[]
+
+  @@index([userId])
+  @@map("trips")
+}
+
+model Photo {
+  id               String   @id @default(uuid()) @db.Uuid
+  tripId           String   @map("trip_id") @db.Uuid
+  fileName         String   @map("file_name")
+  originalName     String   @map("original_name")
+  mimeType         String   @map("mime_type")
+  fileSize         Int      @map("file_size")
+  storagePath      String   @map("storage_path")
+  publicUrl        String   @map("public_url")
+  takenAt          DateTime @map("taken_at") @db.Timestamptz(6)
+  lat              Float?
+  lng              Float?
+  country          String?
+  province         String?
+  city             String?
+  district         String?
+  township         String?
+  adcode           String?
+  poiName          String?  @map("poi_name")
+  aoiName          String?  @map("aoi_name")
+  placeName        String?  @map("place_name")
+  formattedAddress String?  @map("formatted_address")
+  width            Int?
+  height           Int?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trip                Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  segmentPhotos       TripSegmentPhoto[]
+  routePointPhotos    RoutePointPhoto[]
+  representativePoint RoutePoint[]        @relation("RoutePointRepresentativePhoto")
+
+  @@index([tripId])
+  @@map("photos")
+}
+
+model TripDay {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  dayIndex  Int      @map("day_index")
+  date      DateTime @db.Date
+  title     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  segments TripSegment[]
+
+  @@index([tripId])
+  @@unique([tripId, dayIndex])
+  @@map("trip_days")
+}
+
+model TripSegment {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripDayId String   @map("trip_day_id") @db.Uuid
+  title     String
+  placeName String?  @map("place_name")
+  lat       Float?
+  lng       Float?
+  startTime DateTime @map("start_time") @db.Timestamptz(6)
+  endTime   DateTime @map("end_time") @db.Timestamptz(6)
+  sortOrder Int      @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  day    TripDay             @relation(fields: [tripDayId], references: [id], onDelete: Cascade)
+  photos TripSegmentPhoto[]
+
+  @@index([tripDayId])
+  @@map("trip_segments")
+}
+
+model TripSegmentPhoto {
+  tripSegmentId String @map("trip_segment_id") @db.Uuid
+  photoId       String @map("photo_id") @db.Uuid
+  sortOrder     Int    @map("sort_order")
+
+  segment TripSegment @relation(fields: [tripSegmentId], references: [id], onDelete: Cascade)
+  photo   Photo       @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@id([tripSegmentId, photoId])
+  @@map("trip_segment_photos")
+}
+
+model RoutePoint {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tripId                String   @map("trip_id") @db.Uuid
+  placeName             String   @map("place_name")
+  lat                   Float?
+  lng                   Float?
+  date                  DateTime @db.Date
+  startTime             DateTime @map("start_time") @db.Timestamptz(6)
+  representativePhotoId String?  @map("representative_photo_id") @db.Uuid
+  sortOrder             Int      @map("sort_order")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trip                Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  representativePhoto Photo?            @relation("RoutePointRepresentativePhoto", fields: [representativePhotoId], references: [id], onDelete: SetNull)
+  photos              RoutePointPhoto[]
+
+  @@index([tripId])
+  @@map("route_points")
+}
+
+model RoutePointPhoto {
+  routePointId String @map("route_point_id") @db.Uuid
+  photoId      String @map("photo_id") @db.Uuid
+
+  routePoint RoutePoint @relation(fields: [routePointId], references: [id], onDelete: Cascade)
+  photo      Photo      @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@id([routePointId, photoId])
+  @@map("route_point_photos")
+}
+
+model Embedding {
+  id        String                      @id @default(uuid()) @db.Uuid
+  ownerType String                      @map("owner_type")
+  ownerId   String                      @map("owner_id") @db.Uuid
+  content   String
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([ownerType, ownerId])
+  @@map("embeddings")
+}
